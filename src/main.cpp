@@ -75,8 +75,8 @@ int main(int argc, const char **argv) {
 
 	using namespace ospcommon;
 	const vec2i imageSize(WIN_WIDTH, WIN_HEIGHT);
-	const vec3f camPos(0, 0, 6);
-	const vec3f camDir = vec3f(0) - camPos;
+	const vec3f camPos(0, 2.5, 5);
+	const vec3f camDir = -camPos;
 	const vec3f camUp(0, 1, 0);
 
 	OSPCamera camera = ospNewCamera("perspective");
