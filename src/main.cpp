@@ -103,21 +103,9 @@ int main(int argc, const char **argv) {
 	OSPModel world = ospNewModel();
 
 	// Load all the objects into ospray
-	OSPData normal_data = nullptr;
-	OSPData tex_data = nullptr;
 	OSPData pos_data = ospNewData(attrib.vertices.size() / 3, OSP_FLOAT3,
 			attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
 	ospCommit(pos_data);
-	if (!attrib.normals.empty()) {
-		normal_data = ospNewData(attrib.normals.size() / 3, OSP_FLOAT3,
-				attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
-		ospCommit(normal_data);
-	}
-	if (!attrib.texcoords.empty()) {
-		tex_data = ospNewData(attrib.texcoords.size() / 2, OSP_FLOAT2,
-				attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
-		ospCommit(tex_data);
-	}
 
 	for (size_t s = 0; s < shapes.size(); ++s) {
 		std::cout << "Loading mesh " << shapes[s].name
@@ -133,12 +121,6 @@ int main(int argc, const char **argv) {
 		OSPGeometry geom = ospNewGeometry("triangles");
 		ospSetObject(geom, "vertex", pos_data);
 		ospSetObject(geom, "index", idx_data);
-		if (normal_data) {
-			//ospSetObject(geom, "vertex.normal", normal_data);
-		}
-		if (tex_data) {
-			//ospSetObject(geom, "vertex.texcoord", tex_data);
-		}
 		ospCommit(geom);
 		ospAddGeometry(world, geom);
 	}
