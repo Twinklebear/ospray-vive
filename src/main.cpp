@@ -112,7 +112,7 @@ int main(int argc, const char **argv) {
 			<< ", has " << shapes[s].mesh.indices.size() << " vertices\n";
 		const tinyobj::mesh_t &mesh = shapes[s].mesh;
 		std::vector<int32_t> indices;
-		indices.reserve(mesh.indices.size() * 3);
+		indices.reserve(mesh.indices.size());
 		for (const auto &idx : mesh.indices) {
 			indices.push_back(idx.vertex_index);
 		}
