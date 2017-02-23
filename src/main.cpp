@@ -102,7 +102,6 @@ int main(int argc, const char **argv) {
 
 	OSPModel world = ospNewModel();
 
-#if 1
 	// Load all the objects into ospray
 	OSPData normal_data = nullptr;
 	OSPData tex_data = nullptr;
@@ -143,36 +142,6 @@ int main(int argc, const char **argv) {
 		ospCommit(geom);
 		ospAddGeometry(world, geom);
 	}
-#else
-	// triangle mesh data
-	float vertex[] = { -1.0f, -1.0f, 3.0f, 0.f,
-		-1.0f,  1.0f, 3.0f, 0.f,
-		1.0f, -1.0f, 3.0f, 0.f,
-		1.0f,  1.0f, 3.0f, 0.f };
-	float color[] =  { 0.9f, 0.5f, 0.5f, 1.0f,
-		0.8f, 0.8f, 0.8f, 1.0f,
-		0.8f, 0.8f, 0.8f, 1.0f,
-		0.5f, 0.9f, 0.5f, 1.0f };
-	int32_t index[] = { 0, 1, 2,
-		1, 2, 3 };
-
-	// create and setup model and mesh
-	OSPGeometry mesh = ospNewGeometry("triangles");
-	OSPData data = ospNewData(4, OSP_FLOAT3A, vertex); // OSP_FLOAT3 format is also supported for vertex positions
-	ospCommit(data);
-	ospSetData(mesh, "vertex", data);
-
-	data = ospNewData(4, OSP_FLOAT4, color);
-	ospCommit(data);
-	ospSetData(mesh, "vertex.color", data);
-
-	data = ospNewData(2, OSP_INT3, index); // OSP_INT4 format is also supported for triangle indices
-	ospCommit(data);
-	ospSetData(mesh, "index", data);
-
-	ospCommit(mesh);
-	ospAddGeometry(world, mesh);
-#endif
 	ospCommit(world);
 
 	OSPRenderer renderer = ospNewRenderer("ao");
