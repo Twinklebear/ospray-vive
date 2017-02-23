@@ -92,7 +92,7 @@ int main(int argc, const char **argv) {
 	std::vector<tinyobj::material_t> materials;
 	std::string err;
 	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, model_file.c_str(),
-			NULL, true);
+			nullptr, true);
 	if (!err.empty()) {
 		std::cerr << "Error loading model: " << err << "\n";
 	}
@@ -102,18 +102,12 @@ int main(int argc, const char **argv) {
 
 	OSPModel world = ospNewModel();
 
+#if 1
 	// Load all the objects into ospray
 	OSPData normal_data = nullptr;
 	OSPData tex_data = nullptr;
-	// Pad the vertex position data
-	std::vector<vec3fa> padded_pos;
-	padded_pos.reserve(attrib.vertices.size() / 3);
-	for (size_t i = 0; i < attrib.vertices.size() / 3; ++i) {
-		padded_pos.emplace_back(attrib.vertices[i * 3],
-				attrib.vertices[i * 3 + 1], attrib.vertices[i * 3 + 2]);
-	}
-	OSPData pos_data = ospNewData(padded_pos.size(), OSP_FLOAT3A,
-			padded_pos.data(), OSP_DATA_SHARED_BUFFER);
+	OSPData pos_data = ospNewData(attrib.vertices.size() / 3, OSP_FLOAT3,
+			attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
 	ospCommit(pos_data);
 	if (!attrib.normals.empty()) {
 		normal_data = ospNewData(attrib.normals.size() / 3, OSP_FLOAT3,
@@ -127,15 +121,15 @@ int main(int argc, const char **argv) {
 	}
 
 	for (size_t s = 0; s < shapes.size(); ++s) {
+		std::cout << "Loading mesh " << shapes[s].name
+			<< ", has " << shapes[s].mesh.indices.size() << " vertices\n";
 		const tinyobj::mesh_t &mesh = shapes[s].mesh;
-		std::vector<uint32_t> indices;
+		std::vector<int32_t> indices;
 		indices.reserve(mesh.indices.size() * 3);
 		for (const auto &idx : mesh.indices) {
 			indices.push_back(idx.vertex_index);
-			indices.push_back(idx.normal_index);
-			indices.push_back(idx.texcoord_index);
 		}
-		OSPData idx_data = ospNewData(indices.size(), OSP_INT, indices.data());
+		OSPData idx_data = ospNewData(indices.size() / 3, OSP_INT3, indices.data());
 		ospCommit(idx_data);
 		OSPGeometry geom = ospNewGeometry("triangles");
 		ospSetObject(geom, "vertex", pos_data);
@@ -149,6 +143,36 @@ int main(int argc, const char **argv) {
 		ospCommit(geom);
 		ospAddGeometry(world, geom);
 	}
+#else
+	// triangle mesh data
+	float vertex[] = { -1.0f, -1.0f, 3.0f, 0.f,
+		-1.0f,  1.0f, 3.0f, 0.f,
+		1.0f, -1.0f, 3.0f, 0.f,
+		1.0f,  1.0f, 3.0f, 0.f };
+	float color[] =  { 0.9f, 0.5f, 0.5f, 1.0f,
+		0.8f, 0.8f, 0.8f, 1.0f,
+		0.8f, 0.8f, 0.8f, 1.0f,
+		0.5f, 0.9f, 0.5f, 1.0f };
+	int32_t index[] = { 0, 1, 2,
+		1, 2, 3 };
+
+	// create and setup model and mesh
+	OSPGeometry mesh = ospNewGeometry("triangles");
+	OSPData data = ospNewData(4, OSP_FLOAT3A, vertex); // OSP_FLOAT3 format is also supported for vertex positions
+	ospCommit(data);
+	ospSetData(mesh, "vertex", data);
+
+	data = ospNewData(4, OSP_FLOAT4, color);
+	ospCommit(data);
+	ospSetData(mesh, "vertex.color", data);
+
+	data = ospNewData(2, OSP_INT3, index); // OSP_INT4 format is also supported for triangle indices
+	ospCommit(data);
+	ospSetData(mesh, "index", data);
+
+	ospCommit(mesh);
+	ospAddGeometry(world, mesh);
+#endif
 	ospCommit(world);
 
 	OSPRenderer renderer = ospNewRenderer("ao");
