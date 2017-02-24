@@ -76,11 +76,14 @@ int main(int argc, const char **argv) {
 	using namespace ospcommon;
 	const vec2i imageSize(WIN_WIDTH, WIN_HEIGHT);
 	const vec3f camPos(0, 2.5, 5);
-	const vec3f camDir = -camPos;
+	const vec3f camDir = vec3f(0, 1, 0) - camPos;
 	const vec3f camUp(0, 1, 0);
 
 	OSPCamera camera = ospNewCamera("perspective");
 	ospSetf(camera, "aspect", imageSize.x / static_cast<float>(imageSize.y));
+	ospSet1i(camera, "stereoMode", 3);
+	// TODO: Get this from OpenVR note that ospray's units are in meters
+	ospSet1f(camera, "interpupillaryDistance", 0.0635);
 	ospSetVec3f(camera, "pos", (osp::vec3f&)camPos);
 	ospSetVec3f(camera, "dir", (osp::vec3f&)camDir);
 	ospSetVec3f(camera, "up",  (osp::vec3f&)camUp);
