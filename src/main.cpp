@@ -1,5 +1,6 @@
 #include <iostream>
 #include <array>
+#include <iomanip>
 #include <vector>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
@@ -126,16 +127,17 @@ int main(int argc, const char **argv) {
 	// We render both left/right eye to the same framebuffer so we need it to be
 	// 2x the width
 	const vec2i image_size(vr_render_dims[0], vr_render_dims[1]);
-	const vec3f cam_pos(0, 50, 280);
-	const vec3f cam_target = vec3f(0, 40, 0);
+	const vec3f cam_pos(0, 0.5, 1);
+	const vec3f cam_target = vec3f(0, 0, 0);
 	const vec3f cam_up(0, 1, 0);
 
 	// TODO BUG: OSPRay's side-by-side camera can't do proper stereo because it
 	// uses the same look direction for both eyes
 	std::array<OSPCamera, 2> cameras;
 	for (size_t i = 0; i < cameras.size(); ++i) {
+		std::cout << "Eye = " << (i == 0 ? " left" : " right") << "\n";
 		auto eye_mat = vr_system->GetEyeToHeadTransform(i == 0 ? vr::Eye_Left : vr::Eye_Right);
-		std::cout << "[\n";
+		std::cout << " eye to head = [\n";
 		for (size_t r = 0; r < 3; ++r) {
 			for (size_t c = 0; c < 4; ++c) {
 				std::cout << eye_mat.m[r][c] << "  ";
@@ -143,6 +145,22 @@ int main(int argc, const char **argv) {
 			std::cout << "\n";
 		}
 		std::cout << "]\n";
+
+		float left, right, top, bottom;
+		vr_system->GetProjectionRaw(i == 0 ? vr::Eye_Left : vr::Eye_Right, &left, &right, &top, &bottom);
+		std::cout << "Projection raw [" << left << ", " << right
+			<< ", " << top << ", " << bottom << "]\n";
+		auto proj_mat = vr_system->GetProjectionMatrix(i == 0 ? vr::Eye_Left : vr::Eye_Right, 1.0, 100.0);
+		std::cout << "proj = [\n";
+		for (size_t r = 0; r < 4; ++r) {
+			for (size_t c = 0; c < 4; ++c) {
+				std::cout << std::setw(12) << proj_mat.m[r][c] << "  ";
+			}
+			std::cout << "\n";
+		}
+		std::cout << "]\n";
+
+
 		cameras[i] = ospNewCamera("perspective");
 		ospSetf(cameras[i], "aspect", image_size.x / static_cast<float>(image_size.y));
 		// TODO: How to query the HMD IPD?
@@ -154,7 +172,13 @@ int main(int argc, const char **argv) {
 		} else {
 			eye_pos = eye_pos + vec3f(0.0318, 0, 0);
 		}
-		vec3f eye_dir = cam_target - eye_pos;
+		vec3f eye_dir;
+		if (i == 0) {
+			eye_dir = vec3f(-0.0572856, -0.00184159, -1.0101);
+		} else {
+			eye_dir = vec3f(0.0560899, -0.0014897, -1.0101);
+		}
+		ospSet1f(cameras[i], "fovy", 120.f);
 		ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
 		ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dir);
 		ospSetVec3f(cameras[i], "up",  (osp::vec3f&)cam_up);
@@ -178,10 +202,15 @@ int main(int argc, const char **argv) {
 	OSPModel world = ospNewModel();
 
 	// Load all the objects into ospray
+	// Scale down the model
+	for (auto &x : attrib.vertices) {
+		x /= 100.f;
+	}
 	OSPData pos_data = ospNewData(attrib.vertices.size() / 3, OSP_FLOAT3,
 			attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
 	ospCommit(pos_data);
 
+#if 0
 	for (size_t s = 0; s < shapes.size(); ++s) {
 		std::cout << "Loading mesh " << shapes[s].name
 			<< ", has " << shapes[s].mesh.indices.size() << " vertices\n";
@@ -199,6 +228,7 @@ int main(int argc, const char **argv) {
 		ospCommit(geom);
 		ospAddGeometry(world, geom);
 	}
+#endif
 	ospCommit(world);
 
 	OSPRenderer renderer = ospNewRenderer("ao");
@@ -223,7 +253,7 @@ int main(int argc, const char **argv) {
 		// TODO: update camera based on HMD position
 
 		const uint32_t cur_time = SDL_GetTicks();
-		const float elapsed = (cur_time - prev_time) / 1000.f;
+		const uint32_t elapsed = cur_time - prev_time;
 		prev_time = cur_time;
 		SDL_Event e;
 		while (SDL_PollEvent(&e)){
@@ -236,15 +266,6 @@ int main(int argc, const char **argv) {
 		// Render each eye and upload them
 		for (size_t i = 0; i < framebuffers.size(); ++i) {
 			ospSetObject(renderer, "camera", cameras[i]);
-			// Debugging test
-#if 1
-			if (i == 0) {
-				ospSetVec3f(renderer, "bgColor", (osp::vec3f&)vec3f(0.1, 0, 0));
-			} else {
-				ospSetVec3f(renderer, "bgColor", (osp::vec3f&)vec3f(0, 0, 0.1));
-			}
-#endif
-
 			ospCommit(renderer);
 			ospFrameBufferClear(framebuffers[i], OSP_FB_COLOR);
 			ospRenderFrame(framebuffers[i], renderer, OSP_FB_COLOR | OSP_FB_ACCUM);
