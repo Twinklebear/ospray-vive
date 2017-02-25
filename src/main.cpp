@@ -10,8 +10,16 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
-static int WIN_WIDTH = 1280;
-static int WIN_HEIGHT = 720;
+static int WIN_WIDTH = 1280/2;
+static int WIN_HEIGHT = 720/2;
+
+// We only have final resolve textures for the eyes
+// since we don't need MSAA render targets on the GPU like
+// in the samples
+struct EyeResolveFB {
+	GLuint resolve_fb;
+	GLuint resolve_texture;
+};
 
 int main(int argc, const char **argv) {
 	if (argc < 2) {
@@ -86,18 +94,39 @@ int main(int argc, const char **argv) {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, WIN_WIDTH, WIN_HEIGHT, 0, GL_RGBA,
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, vr_render_dims[0] * 2, vr_render_dims[1], 0, GL_RGBA,
 			GL_UNSIGNED_BYTE, nullptr);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	// Setup resolve targets for the eyes
+	std::array<EyeResolveFB, 2> eye_targets;
+	for (size_t i = 0; i < eye_targets.size(); ++i) {
+		glGenFramebuffers(1, &eye_targets[i].resolve_fb);
+		glGenTextures(1, &eye_targets[i].resolve_texture);
+		glBindTexture(GL_TEXTURE_2D, eye_targets[i].resolve_texture);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, vr_render_dims[0], vr_render_dims[1], 0, GL_RGBA,
+				GL_UNSIGNED_BYTE, nullptr);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, eye_targets[i].resolve_fb);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+				eye_targets[i].resolve_texture, 0);
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	ospInit(&argc, argv);
 
 	using namespace ospcommon;
-	const vec2i imageSize(WIN_WIDTH, WIN_HEIGHT);
-	const vec3f camPos(0, 50, 120);
+	// We render both left/right eye to the same framebuffer so we need it to be
+	// 2x the width
+	const vec2i imageSize(vr_render_dims[0] * 2, vr_render_dims[1]);
+	const vec3f camPos(0, 50, 240);
 	const vec3f camDir = vec3f(0, 40, 0) - camPos;
 	const vec3f camUp(0, 1, 0);
 
@@ -161,10 +190,14 @@ int main(int argc, const char **argv) {
 			OSP_FB_COLOR | OSP_FB_ACCUM);
 	ospFrameBufferClear(framebuffer, OSP_FB_COLOR | OSP_FB_ACCUM);
 
+	std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> tracked_device_poses;
 	bool quit = false;
 	uint32_t prev_time = SDL_GetTicks();
 	const std::string win_title = "OSPRay + Vive - frame time ";
 	while (!quit) {
+		vr::VRCompositor()->WaitGetPoses(tracked_device_poses.data(), tracked_device_poses.size(), NULL, 0);
+		// TODO: update camera based on HMD position
+
 		const uint32_t cur_time = SDL_GetTicks();
 		const float elapsed = (cur_time - prev_time) / 1000.f;
 		prev_time = cur_time;
@@ -178,18 +211,45 @@ int main(int argc, const char **argv) {
 		ospFrameBufferClear(framebuffer, OSP_FB_COLOR);
 		ospRenderFrame(framebuffer, renderer, OSP_FB_COLOR | OSP_FB_ACCUM);
 		const uint32_t *fb = static_cast<const uint32_t*>(ospMapFrameBuffer(framebuffer, OSP_FB_COLOR));
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, WIN_WIDTH, WIN_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, fb);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, vr_render_dims[0] * 2, vr_render_dims[1],
+				GL_RGBA, GL_UNSIGNED_BYTE, fb);
 		ospUnmapFrameBuffer(fb, framebuffer);
 
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		glBlitFramebuffer(0, 0, WIN_WIDTH, WIN_HEIGHT, 0, 0, WIN_WIDTH, WIN_HEIGHT,
-				GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
+		// Blit the left/right eye halves of the ospray framebuffer to the left/right resolve targets
+		// and submit them
+		for (size_t i = 0; i < eye_targets.size(); ++i) {
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, eye_targets[i].resolve_fb);
+			glBlitFramebuffer(vr_render_dims[0] * i, 0, vr_render_dims[0] * i + vr_render_dims[0], vr_render_dims[1],
+					0, 0, vr_render_dims[0], vr_render_dims[1], GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		}
+		vr::Texture_t left_eye = {};
+		left_eye.handle = reinterpret_cast<void*>(eye_targets[0].resolve_texture);
+		left_eye.eType = vr::TextureType_OpenGL;
+		left_eye.eColorSpace = vr::ColorSpace_Gamma;
+
+		vr::Texture_t right_eye = {};
+		right_eye.handle = reinterpret_cast<void*>(eye_targets[1].resolve_texture);
+		right_eye.eType = vr::TextureType_OpenGL;
+		right_eye.eColorSpace = vr::ColorSpace_Gamma;
+
+		vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye);
+		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye);
+
+		// Blit the app window display
+#if 0
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, vr_render_dims[0] * 2, vr_render_dims[1], 0, 0, WIN_WIDTH, WIN_HEIGHT,
+				GL_COLOR_BUFFER_BIT, GL_NEAREST);
+#endif
 		SDL_GL_SwapWindow(win);
 
+#if 1
 		const std::string title = win_title + std::to_string(elapsed) + "ms";
 		SDL_SetWindowTitle(win, title.c_str());
+#endif
 	}
 
 	vr::VR_Shutdown();
