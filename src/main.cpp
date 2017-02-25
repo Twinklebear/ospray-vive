@@ -183,6 +183,7 @@ int main(int argc, const char **argv) {
 		// TODO: How to query the HMD IPD?
 		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
 		// TODO: Need to get the correct fovy from the HMD or projection matrix
+		ospSet1i(cameras[i], "stereoMode", i);
 		ospSet1f(cameras[i], "fovy", 110.f);
 	}
 
@@ -262,7 +263,7 @@ int main(int argc, const char **argv) {
 			const uint32_t prev_time = SDL_GetTicks();
 
 			// Transform the eye based on the head position
-			const vec3f eye_pos = xfmPoint(hmd_mat, eye_offsets[i]);
+			const vec3f eye_pos = hmd_mat.p;//xfmPoint(hmd_mat, eye_offsets[i]);
 			const vec3f eye_dir = xfmVector(hmd_mat, eye_dirs[i]);
 			const vec3f cam_up = xfmVector(hmd_mat, vec3f(0, 1, 0));
 			ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
