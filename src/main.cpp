@@ -86,6 +86,8 @@ int main(int argc, const char **argv) {
 	vr_system->GetRecommendedRenderTargetSize(&vr_render_dims[0], &vr_render_dims[1]);
 	std::cout << "OpenVR recommended render target resolution = " << vr_render_dims[0]
 		<< "x" << vr_render_dims[1] << "\n";
+	vr_render_dims[0] *= 0.7;
+	vr_render_dims[1] *= 0.7;
 
 	GLuint fbo, texture;
 	glGenFramebuffers(1, &fbo);
@@ -127,13 +129,20 @@ int main(int argc, const char **argv) {
 	// We render both left/right eye to the same framebuffer so we need it to be
 	// 2x the width
 	const vec2i image_size(vr_render_dims[0], vr_render_dims[1]);
-	const vec3f cam_pos(0, 0.5, 1);
+	const vec3f cam_pos(0, 0.7, 2.5);
 	const vec3f cam_target = vec3f(0, 0, 0);
 	const vec3f cam_up(0, 1, 0);
 
 	// TODO BUG: OSPRay's side-by-side camera can't do proper stereo because it
 	// uses the same look direction for both eyes
 	std::array<OSPCamera, 2> cameras;
+	// TODO READ these hardcoded eye direction info from the actual ospray matrix
+	const std::array<vec3f, 2> eye_offsets = { vec3f(-0.0318, 0, 0.015), vec3f(0.0318, 0, 0.016) };
+	// TODO: These are read off of the projection matrix, so read it
+	// up from the matrix when loading instead of hard-coding it
+	const std::array<vec3f, 2> eye_dirs = { vec3f(-0.0572856, -0.00184159, -1.0101),
+		vec3f(0.0560899, -0.0014897, -1.0101)
+	};
 	for (size_t i = 0; i < cameras.size(); ++i) {
 		std::cout << "Eye = " << (i == 0 ? " left" : " right") << "\n";
 		auto eye_mat = vr_system->GetEyeToHeadTransform(i == 0 ? vr::Eye_Left : vr::Eye_Right);
@@ -163,24 +172,14 @@ int main(int argc, const char **argv) {
 
 		cameras[i] = ospNewCamera("perspective");
 		ospSetf(cameras[i], "aspect", image_size.x / static_cast<float>(image_size.y));
-		// TODO: How to query the HMD IPD?
+		// TODO: ospray has bug with side-by-side
 		//ospSet1i(cameras[i], "stereoMode", 0);
+		// TODO: How to query the HMD IPD?
 		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
-		vec3f eye_pos = cam_pos;
-		if (i == 0) {
-			eye_pos = eye_pos - vec3f(0.0318, 0, 0);
-		} else {
-			eye_pos = eye_pos + vec3f(0.0318, 0, 0);
-		}
-		vec3f eye_dir;
-		if (i == 0) {
-			eye_dir = vec3f(-0.0572856, -0.00184159, -1.0101);
-		} else {
-			eye_dir = vec3f(0.0560899, -0.0014897, -1.0101);
-		}
+		vec3f eye_pos = cam_pos + eye_offsets[i];
 		ospSet1f(cameras[i], "fovy", 120.f);
 		ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
-		ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dir);
+		ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dirs[i]);
 		ospSetVec3f(cameras[i], "up",  (osp::vec3f&)cam_up);
 		ospCommit(cameras[i]);
 	}
@@ -200,17 +199,10 @@ int main(int argc, const char **argv) {
 	}
 
 	OSPModel world = ospNewModel();
-
 	// Load all the objects into ospray
-	// Scale down the model
-	for (auto &x : attrib.vertices) {
-		x /= 100.f;
-	}
 	OSPData pos_data = ospNewData(attrib.vertices.size() / 3, OSP_FLOAT3,
 			attrib.vertices.data(), OSP_DATA_SHARED_BUFFER);
 	ospCommit(pos_data);
-
-#if 0
 	for (size_t s = 0; s < shapes.size(); ++s) {
 		std::cout << "Loading mesh " << shapes[s].name
 			<< ", has " << shapes[s].mesh.indices.size() << " vertices\n";
@@ -228,10 +220,9 @@ int main(int argc, const char **argv) {
 		ospCommit(geom);
 		ospAddGeometry(world, geom);
 	}
-#endif
 	ospCommit(world);
 
-	OSPRenderer renderer = ospNewRenderer("ao");
+	OSPRenderer renderer = ospNewRenderer("raycast_Ns");
 	ospSetObject(renderer, "model", world);
 	ospSetObject(renderer, "camera", cameras[0]);
 	ospSetVec3f(renderer, "bgColor", (osp::vec3f&)vec3f(0.05));
@@ -239,22 +230,15 @@ int main(int argc, const char **argv) {
 
 	std::array<OSPFrameBuffer, 2> framebuffers;
 	for (size_t i = 0; i < framebuffers.size(); ++i) {
-		framebuffers[i] = ospNewFrameBuffer((osp::vec2i&)image_size, OSP_FB_SRGBA,
-				OSP_FB_COLOR | OSP_FB_ACCUM);
-		ospFrameBufferClear(framebuffers[i], OSP_FB_COLOR | OSP_FB_ACCUM);
+		framebuffers[i] = ospNewFrameBuffer((osp::vec2i&)image_size, OSP_FB_SRGBA, OSP_FB_COLOR);
+		ospFrameBufferClear(framebuffers[i], OSP_FB_COLOR);
 	}
 
 	std::array<vr::TrackedDevicePose_t, vr::k_unMaxTrackedDeviceCount> tracked_device_poses;
 	bool quit = false;
 	uint32_t prev_time = SDL_GetTicks();
-	const std::string win_title = "OSPRay + Vive - frame time ";
+	const std::string win_title = "OSPRay + Vive - OSPRay time for both eyes ";
 	while (!quit) {
-		vr::VRCompositor()->WaitGetPoses(tracked_device_poses.data(), tracked_device_poses.size(), NULL, 0);
-		// TODO: update camera based on HMD position
-
-		const uint32_t cur_time = SDL_GetTicks();
-		const uint32_t elapsed = cur_time - prev_time;
-		prev_time = cur_time;
 		SDL_Event e;
 		while (SDL_PollEvent(&e)){
 			if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)){
@@ -263,12 +247,20 @@ int main(int argc, const char **argv) {
 			}
 		}
 
+		// Update camera based on HMD position
+		vr::VRCompositor()->WaitGetPoses(tracked_device_poses.data(), tracked_device_poses.size(), NULL, 0);
+
 		// Render each eye and upload them
+		uint32_t elapsed = 0;
 		for (size_t i = 0; i < framebuffers.size(); ++i) {
+			const uint32_t prev_time = SDL_GetTicks();
 			ospSetObject(renderer, "camera", cameras[i]);
 			ospCommit(renderer);
 			ospFrameBufferClear(framebuffers[i], OSP_FB_COLOR);
-			ospRenderFrame(framebuffers[i], renderer, OSP_FB_COLOR | OSP_FB_ACCUM);
+			ospRenderFrame(framebuffers[i], renderer, OSP_FB_COLOR);
+			const uint32_t cur_time = SDL_GetTicks();
+			elapsed += cur_time - prev_time;
+
 			const uint32_t *fb = static_cast<const uint32_t*>(ospMapFrameBuffer(framebuffers[i], OSP_FB_COLOR));
 			glBindTexture(GL_TEXTURE_2D, texture);
 			glTexSubImage2D(GL_TEXTURE_2D, 0, vr_render_dims[0] * i, 0, vr_render_dims[0], vr_render_dims[1],
@@ -298,7 +290,7 @@ int main(int argc, const char **argv) {
 		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye);
 
 		// Blit the app window display
-#if 1
+#if 0
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glBlitFramebuffer(0, 0, vr_render_dims[0] * 2, vr_render_dims[1], 0, 0, WIN_WIDTH, WIN_HEIGHT,
 				GL_COLOR_BUFFER_BIT, GL_NEAREST);
