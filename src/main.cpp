@@ -36,7 +36,7 @@ int main(int argc, const char **argv) {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 #endif
 
-	SDL_Window *win = SDL_CreateWindow("OSPRay-vive", SDL_WINDOWPOS_CENTERED,
+	SDL_Window *win = SDL_CreateWindow("OSPRay + Vive", SDL_WINDOWPOS_CENTERED,
 			SDL_WINDOWPOS_CENTERED, WIN_WIDTH, WIN_HEIGHT, SDL_WINDOW_OPENGL);
 	if (!win){
 		std::cout << "Failed to open SDL window: " << SDL_GetError() << "\n";
@@ -56,7 +56,7 @@ int main(int argc, const char **argv) {
 		SDL_Quit();
 		return 1;
 	}
-	SDL_GL_SetSwapInterval(1);
+	SDL_GL_SetSwapInterval(0);
 
 	// Setup OpenVR system
 	vr::EVRInitError vr_error;
@@ -162,7 +162,12 @@ int main(int argc, const char **argv) {
 	ospFrameBufferClear(framebuffer, OSP_FB_COLOR | OSP_FB_ACCUM);
 
 	bool quit = false;
-	while (!quit){
+	uint32_t prev_time = SDL_GetTicks();
+	const std::string win_title = "OSPRay + Vive - frame time ";
+	while (!quit) {
+		const uint32_t cur_time = SDL_GetTicks();
+		const float elapsed = (cur_time - prev_time) / 1000.f;
+		prev_time = cur_time;
 		SDL_Event e;
 		while (SDL_PollEvent(&e)){
 			if (e.type == SDL_QUIT || (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)){
@@ -182,6 +187,9 @@ int main(int argc, const char **argv) {
 				GL_COLOR_BUFFER_BIT, GL_NEAREST);
 
 		SDL_GL_SwapWindow(win);
+
+		const std::string title = win_title + std::to_string(elapsed) + "ms";
+		SDL_SetWindowTitle(win, title.c_str());
 	}
 
 	vr::VR_Shutdown();
