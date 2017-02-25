@@ -144,7 +144,9 @@ int main(int argc, const char **argv) {
 	// uses the same look direction for both eyes
 	std::array<OSPCamera, 2> cameras;
 	// TODO READ these hardcoded eye direction info from the actual ospray matrix
-	const std::array<vec3f, 2> eye_offsets = { vec3f(-0.0316, 0, 0.015), vec3f(0.0316, 0, 0.015) };
+	// OSPRay does the interpupillary offset for us, we just need to do this extra 0.015 offset
+	// along z for the head to eye matrix
+	const std::array<vec3f, 2> eye_offsets = { vec3f(0, 0, 0.015), vec3f(0, 0, 0.015) };
 	// TODO: These are read off of the projection matrix, so read it
 	// up from the matrix when loading instead of hard-coding it
 	const std::array<vec3f, 2> eye_dirs = { vec3f(-0.0572856, -0.00184159, -1.0101),
@@ -263,7 +265,7 @@ int main(int argc, const char **argv) {
 			const uint32_t prev_time = SDL_GetTicks();
 
 			// Transform the eye based on the head position
-			const vec3f eye_pos = hmd_mat.p;//xfmPoint(hmd_mat, eye_offsets[i]);
+			const vec3f eye_pos = xfmPoint(hmd_mat, eye_offsets[i]);
 			const vec3f eye_dir = xfmVector(hmd_mat, eye_dirs[i]);
 			const vec3f cam_up = xfmVector(hmd_mat, vec3f(0, 1, 0));
 			ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
