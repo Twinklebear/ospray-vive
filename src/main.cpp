@@ -6,6 +6,7 @@
 #include <SDL.h>
 #include <ospray.h>
 #include <ospcommon/vec.h>
+#include <ospcommon/AffineSpace.h>
 #include <openvr.h>
 #include "gl_core_3_3.h"
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -21,6 +22,15 @@ struct EyeResolveFB {
 	GLuint resolve_fb;
 	GLuint resolve_texture;
 };
+
+ospcommon::AffineSpace3f convert_vr_mat(const vr::HmdMatrix34_t &m) {
+	using namespace ospcommon;
+	return AffineSpace3f(
+			vec3f(m.m[0][0], m.m[1][0], m.m[2][0]),
+			vec3f(m.m[0][1], m.m[1][1], m.m[2][1]),
+			vec3f(m.m[0][2], m.m[1][2], m.m[2][2]),
+			vec3f(m.m[0][3], m.m[1][3], m.m[2][3]));
+}
 
 int main(int argc, const char **argv) {
 	if (argc < 2) {
@@ -129,7 +139,7 @@ int main(int argc, const char **argv) {
 	// We render both left/right eye to the same framebuffer so we need it to be
 	// 2x the width
 	const vec2i image_size(vr_render_dims[0], vr_render_dims[1]);
-	const vec3f cam_pos(0, 0.7, 2.5);
+	const vec3f cam_pos(0, 0, 2.5);
 	const vec3f cam_target = vec3f(0, 0, 0);
 	const vec3f cam_up(0, 1, 0);
 
@@ -177,7 +187,8 @@ int main(int argc, const char **argv) {
 		// TODO: How to query the HMD IPD?
 		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
 		vec3f eye_pos = cam_pos + eye_offsets[i];
-		ospSet1f(cameras[i], "fovy", 120.f);
+		// TODO: Need to get the correct fovy from the HMD or projection matrix
+		ospSet1f(cameras[i], "fovy", 110.f);
 		ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
 		ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dirs[i]);
 		ospSetVec3f(cameras[i], "up",  (osp::vec3f&)cam_up);
@@ -249,13 +260,27 @@ int main(int argc, const char **argv) {
 
 		// Update camera based on HMD position
 		vr::VRCompositor()->WaitGetPoses(tracked_device_poses.data(), tracked_device_poses.size(), NULL, 0);
+		const AffineSpace3f hmd_mat
+			= convert_vr_mat(tracked_device_poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
+		//std::cout << "hmd_mat = [\n" << hmd_mat << "]\n";
+
 
 		// Render each eye and upload them
 		uint32_t elapsed = 0;
 		for (size_t i = 0; i < framebuffers.size(); ++i) {
 			const uint32_t prev_time = SDL_GetTicks();
+
+			// Transform the eye based on the head position
+			const vec3f eye_pos = xfmPoint(hmd_mat, eye_offsets[i]);
+			const vec3f eye_dir = xfmVector(hmd_mat, eye_dirs[i]);
+			const vec3f cam_up = xfmVector(hmd_mat, vec3f(0, 1, 0));
+			ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
+			ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dir);
+			ospSetVec3f(cameras[i], "up",  (osp::vec3f&)cam_up);
+			ospCommit(cameras[i]);
 			ospSetObject(renderer, "camera", cameras[i]);
 			ospCommit(renderer);
+
 			ospFrameBufferClear(framebuffers[i], OSP_FB_COLOR);
 			ospRenderFrame(framebuffers[i], renderer, OSP_FB_COLOR);
 			const uint32_t cur_time = SDL_GetTicks();
@@ -290,7 +315,7 @@ int main(int argc, const char **argv) {
 		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye);
 
 		// Blit the app window display
-#if 0
+#if 1
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		glBlitFramebuffer(0, 0, vr_render_dims[0] * 2, vr_render_dims[1], 0, 0, WIN_WIDTH, WIN_HEIGHT,
 				GL_COLOR_BUFFER_BIT, GL_NEAREST);
