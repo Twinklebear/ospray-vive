@@ -139,15 +139,12 @@ int main(int argc, const char **argv) {
 	// We render both left/right eye to the same framebuffer so we need it to be
 	// 2x the width
 	const vec2i image_size(vr_render_dims[0], vr_render_dims[1]);
-	const vec3f cam_pos(0, 0, 2.5);
-	const vec3f cam_target = vec3f(0, 0, 0);
-	const vec3f cam_up(0, 1, 0);
 
 	// TODO BUG: OSPRay's side-by-side camera can't do proper stereo because it
 	// uses the same look direction for both eyes
 	std::array<OSPCamera, 2> cameras;
 	// TODO READ these hardcoded eye direction info from the actual ospray matrix
-	const std::array<vec3f, 2> eye_offsets = { vec3f(-0.0318, 0, 0.015), vec3f(0.0318, 0, 0.016) };
+	const std::array<vec3f, 2> eye_offsets = { vec3f(-0.0316, 0, 0.015), vec3f(0.0316, 0, 0.015) };
 	// TODO: These are read off of the projection matrix, so read it
 	// up from the matrix when loading instead of hard-coding it
 	const std::array<vec3f, 2> eye_dirs = { vec3f(-0.0572856, -0.00184159, -1.0101),
@@ -179,20 +176,14 @@ int main(int argc, const char **argv) {
 		}
 		std::cout << "]\n";
 
-
 		cameras[i] = ospNewCamera("perspective");
 		ospSetf(cameras[i], "aspect", image_size.x / static_cast<float>(image_size.y));
 		// TODO: ospray has bug with side-by-side
 		//ospSet1i(cameras[i], "stereoMode", 0);
 		// TODO: How to query the HMD IPD?
 		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
-		vec3f eye_pos = cam_pos + eye_offsets[i];
 		// TODO: Need to get the correct fovy from the HMD or projection matrix
 		ospSet1f(cameras[i], "fovy", 110.f);
-		ospSetVec3f(cameras[i], "pos", (osp::vec3f&)eye_pos);
-		ospSetVec3f(cameras[i], "dir", (osp::vec3f&)eye_dirs[i]);
-		ospSetVec3f(cameras[i], "up",  (osp::vec3f&)cam_up);
-		ospCommit(cameras[i]);
 	}
 
 	// Load the model w/ tinyobjloader
