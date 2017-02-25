@@ -22,8 +22,9 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(SDL2 REQUIRED)
 find_package(ospray REQUIRED)
+find_package(OpenVR REQUIRED)
 
 include_directories(${SDL2_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR}
-	${OSPRAY_INCLUDE_DIRS})
+	${OSPRAY_INCLUDE_DIRS} ${OPENVR_INCLUDE_DIR})
 add_subdirectory(src)
 

@@ -1,18 +1,18 @@
 # Find the OpenVR SDK
 # NOTE: there is no default installation path as the code needs to be build
 # This module defines:
-# OPENVR_SDK_FOUND, if false do not try to link against the Open VR SDK
-# OPENVR_SDK_LIBRARY, the name of the Open VR SDK library to link against
-# OPENVR_SDK_INCLUDE_DIR, the Open VR SDK include directory
+# OPENVR_FOUND, if false do not try to link against the Open VR SDK
+# OPENVR_LIBRARY, the name of the Open VR SDK library to link against
+# OPENVR_INCLUDE_DIR, the Open VR SDK include directory
 #
-# You can also specify the environment variable OPENVR_SDK or define it with
-# -DOPENVR_SDK=... to hint at the module where to search for the Open VR SDK if it's
+# You can also specify the environment variable OPENVR or define it with
+# -DOPENVR=... to hint at the module where to search for the Open VR SDK if it's
 # installed in a non-standard location.
 
-find_path(OPENVR_SDK_INCLUDE_DIR openvr.h
+find_path(OPENVR_INCLUDE_DIR openvr.h
 	HINTS
-	$ENV{OPENVR_SDK}
-	${OPENVR_SDK}
+	${OPENVR}
+	$ENV{OPENVR}
 	PATH_SUFFIXES headers/
 	# TODO: Unsure on handling of the possible default install locations
 	PATHS
@@ -25,6 +25,7 @@ find_path(OPENVR_SDK_INCLUDE_DIR openvr.h
 	/opt/csw # Blastwave
 	/opt
 )
+message("openvr include ${OPENVR_INCLUDE_DIR}")
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	if (UNIX OR MINGW)
@@ -46,10 +47,10 @@ else()
 	endif()
 endif()
 
-find_library(OPENVR_SDK_LIBRARY_TMP NAMES openvr_api openr_api.lib
+find_library(OPENVR_LIBRARY_TMP NAMES openvr_api openr_api.lib
 	HINTS
-	$ENV{OPENVR_SDK}
-	${OPENVR_SDK}
+	${OPENVR}
+	$ENV{OPENVR}
 	PATH_SUFFIXES ${LIB_PATH_SUFFIX}
 	# TODO: I don't know if these will be correct if people have installed
 	# the library on to their system instead of just using the git repo or w/e
@@ -60,14 +61,13 @@ find_library(OPENVR_SDK_LIBRARY_TMP NAMES openvr_api openr_api.lib
 	/opt
 )
 
-set(OPENVR_SDK_FOUND FALSE)
-if (OPENVR_SDK_LIBRARY_TMP AND OPENVR_SDK_INCLUDE_DIR)
-	set(OPENVR_SDK_LIBRARY ${OPENVR_SDK_LIBRARY_TMP} CACHE STRING "Which OpenVR library to link against")
-	set(OPENVR_SDK_LIBRARY_TMP ${OPENVR_SDK_LIBRARY_TMP} CACHE INTERNAL "")
-	set(OPENVR_SDK_FOUND TRUE)
+set(OPENVR_FOUND FALSE)
+if (OPENVR_LIBRARY_TMP AND OPENVR_INCLUDE_DIR)
+	set(OPENVR_LIBRARY ${OPENVR_LIBRARY_TMP} CACHE STRING "Which OpenVR library to link against")
+	set(OPENVR_LIBRARY_TMP ${OPENVR_LIBRARY_TMP} CACHE INTERNAL "")
+	set(OPENVR_FOUND TRUE)
 endif()
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(OpenVRSDK REQUIRED_VARS OPENVR_SDK_LIBRARY OPENVR_SDK_INCLUDE_DIR)
-
+find_package_handle_standard_args(OpenVRSDK REQUIRED_VARS OPENVR_LIBRARY OPENVR_INCLUDE_DIR)
 

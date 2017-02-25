@@ -1,9 +1,11 @@
 #include <iostream>
+#include <array>
 #include <vector>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <ospray.h>
 #include <ospcommon/vec.h>
+#include <openvr.h>
 #include "gl_core_3_3.h"
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -56,6 +58,26 @@ int main(int argc, const char **argv) {
 	}
 	SDL_GL_SetSwapInterval(1);
 
+	// Setup OpenVR system
+	vr::EVRInitError vr_error;
+	vr::IVRSystem *vr_system = vr::VR_Init(&vr_error, vr::VRApplication_Scene);
+	if (vr_error != vr::VRInitError_None) {
+		std::cout << "OpenVR Init error " << vr_error << "\n";
+		return 1;
+	}
+	if (!vr_system->IsTrackedDeviceConnected(vr::k_unTrackedDeviceIndex_Hmd)) {
+		std::cout << "OpenVR HMD not tracking! Check connection and restart\n";
+		return 1;
+	}
+	if (!vr::VRCompositor()) {
+		std::cout << "OpenVR Failed to initialize compositor\n";
+		return 1;
+	}
+	std::array<uint32_t, 2> vr_render_dims;
+	vr_system->GetRecommendedRenderTargetSize(&vr_render_dims[0], &vr_render_dims[1]);
+	std::cout << "OpenVR recommended render target resolution = " << vr_render_dims[0]
+		<< "x" << vr_render_dims[1] << "\n";
+
 	GLuint fbo, texture;
 	glGenFramebuffers(1, &fbo);
 	glGenTextures(1, &texture);
@@ -75,8 +97,8 @@ int main(int argc, const char **argv) {
 
 	using namespace ospcommon;
 	const vec2i imageSize(WIN_WIDTH, WIN_HEIGHT);
-	const vec3f camPos(0, 2.5, 5);
-	const vec3f camDir = vec3f(0, 1, 0) - camPos;
+	const vec3f camPos(0, 50, 120);
+	const vec3f camDir = vec3f(0, 40, 0) - camPos;
 	const vec3f camUp(0, 1, 0);
 
 	OSPCamera camera = ospNewCamera("perspective");
@@ -162,6 +184,7 @@ int main(int argc, const char **argv) {
 		SDL_GL_SwapWindow(win);
 	}
 
+	vr::VR_Shutdown();
 	SDL_GL_DeleteContext(ctx);
 	SDL_DestroyWindow(win);
 	SDL_Quit();
