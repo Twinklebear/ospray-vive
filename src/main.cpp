@@ -149,8 +149,8 @@ int main(int argc, const char **argv) {
 	const std::array<vec3f, 2> eye_offsets = { vec3f(0, 0, 0.015), vec3f(0, 0, 0.015) };
 	// TODO: These are read off of the projection matrix, so read it
 	// up from the matrix when loading instead of hard-coding it
-	const std::array<vec3f, 2> eye_dirs = { vec3f(-0.0572856, -0.00184159, -1.0101),
-		vec3f(0.0560899, -0.0014897, -1.0101)
+	const std::array<vec3f, 2> eye_dirs = { vec3f(1.315 * -0.0572856, -0.00184159, -1.0101),
+		vec3f(1.315 * 0.0560899, -0.0014897, -1.0101)
 	};
 	for (size_t i = 0; i < cameras.size(); ++i) {
 		std::cout << "Eye = " << (i == 0 ? " left" : " right") << "\n";
@@ -186,7 +186,7 @@ int main(int argc, const char **argv) {
 		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
 		// TODO: Need to get the correct fovy from the HMD or projection matrix
 		ospSet1i(cameras[i], "stereoMode", i);
-		ospSet1f(cameras[i], "fovy", 110.f);
+		ospSet1f(cameras[i], "fovy", 111.26f);
 	}
 
 	// Load the model w/ tinyobjloader
