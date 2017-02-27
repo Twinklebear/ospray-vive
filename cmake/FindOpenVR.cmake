@@ -25,7 +25,6 @@ find_path(OPENVR_INCLUDE_DIR openvr.h
 	/opt/csw # Blastwave
 	/opt
 )
-message("openvr include ${OPENVR_INCLUDE_DIR}")
 
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	if (UNIX OR MINGW)

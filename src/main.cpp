@@ -4,7 +4,7 @@
 #include <vector>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
-#include <ospray.h>
+#include <ospray/ospray.h>
 #include <ospcommon/vec.h>
 #include <ospcommon/AffineSpace.h>
 #include <openvr.h>
@@ -96,8 +96,11 @@ int main(int argc, const char **argv) {
 	vr_system->GetRecommendedRenderTargetSize(&vr_render_dims[0], &vr_render_dims[1]);
 	std::cout << "OpenVR recommended render target resolution = " << vr_render_dims[0]
 		<< "x" << vr_render_dims[1] << "\n";
-	vr_render_dims[0] *= 0.7;
-	vr_render_dims[1] *= 0.7;
+	// use Vive's screen resolution
+	vr_render_dims[0] = 1080;
+	vr_render_dims[1] = 1200;
+	std::cout << "App render target resolution = " << vr_render_dims[0]
+		<< "x" << vr_render_dims[1] << "\n";
 
 	GLuint fbo, texture;
 	glGenFramebuffers(1, &fbo);
@@ -134,6 +137,8 @@ int main(int argc, const char **argv) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	ospInit(&argc, argv);
+	// Load our custom Vive code for OSPRay
+	ospLoadModule("vive");
 
 	using namespace ospcommon;
 	// We render both left/right eye to the same framebuffer so we need it to be
@@ -141,52 +146,25 @@ int main(int argc, const char **argv) {
 	const vec2i image_size(vr_render_dims[0], vr_render_dims[1]);
 
 	// TODO BUG: OSPRay's side-by-side camera can't do proper stereo because it
-	// uses the same look direction for both eyes
+	// uses the same imageStart and imageEnd for both eyes
 	std::array<OSPCamera, 2> cameras;
-	// TODO READ these hardcoded eye direction info from the actual ospray matrix
-	// OSPRay does the interpupillary offset for us, we just need to do this extra 0.015 offset
-	// along z for the head to eye matrix
-	const std::array<vec3f, 2> eye_offsets = { vec3f(0, 0, 0.015), vec3f(0, 0, 0.015) };
-	// TODO: These are read off of the projection matrix, so read it
-	// up from the matrix when loading instead of hard-coding it
-	const std::array<vec3f, 2> eye_dirs = { vec3f(1.315 * -0.0572856, -0.00184159, -1.0101),
-		vec3f(1.315 * 0.0560899, -0.0014897, -1.0101)
-	};
+	// OSPRay does the interpupillary offset, but we do it ourselves directly
+	std::array<vec3f, 2> eye_offsets;
+	const std::array<vec3f, 2> eye_dirs = { vec3f(0.0f, 0.0f, -1.0f), vec3f(0.0f, 0.0f, -1.0f) };
 	for (size_t i = 0; i < cameras.size(); ++i) {
 		std::cout << "Eye = " << (i == 0 ? " left" : " right") << "\n";
 		auto eye_mat = vr_system->GetEyeToHeadTransform(i == 0 ? vr::Eye_Left : vr::Eye_Right);
-		std::cout << " eye to head = [\n";
-		for (size_t r = 0; r < 3; ++r) {
-			for (size_t c = 0; c < 4; ++c) {
-				std::cout << eye_mat.m[r][c] << "  ";
-			}
-			std::cout << "\n";
-		}
-		std::cout << "]\n";
+		eye_offsets[i] = vec3f(eye_mat.m[0][3], eye_mat.m[1][3], eye_mat.m[2][3]);
 
 		float left, right, top, bottom;
 		vr_system->GetProjectionRaw(i == 0 ? vr::Eye_Left : vr::Eye_Right, &left, &right, &top, &bottom);
-		std::cout << "Projection raw [" << left << ", " << right
-			<< ", " << top << ", " << bottom << "]\n";
-		auto proj_mat = vr_system->GetProjectionMatrix(i == 0 ? vr::Eye_Left : vr::Eye_Right, 1.0, 100.0);
-		std::cout << "proj = [\n";
-		for (size_t r = 0; r < 4; ++r) {
-			for (size_t c = 0; c < 4; ++c) {
-				std::cout << std::setw(12) << proj_mat.m[r][c] << "  ";
-			}
-			std::cout << "\n";
-		}
-		std::cout << "]\n";
 
-		cameras[i] = ospNewCamera("perspective");
-		ospSetf(cameras[i], "aspect", image_size.x / static_cast<float>(image_size.y));
-		// TODO: ospray has bug with side-by-side
-		//ospSet1i(cameras[i], "stereoMode", 0);
-		// TODO: How to query the HMD IPD?
-		//ospSet1f(camera, "interpupillaryDistance", 0.0635);
-		// TODO: Need to get the correct fovy from the HMD or projection matrix
-		ospSet1i(cameras[i], "stereoMode", i);
-		ospSet1f(cameras[i], "fovy", 111.26f);
+		cameras[i] = ospNewCamera("vr");
+
+		// move image plane (it is shifted to a side)
+		// OpenVR has +y axis pointing down so we flip bottom and top
+		ospSet2f(cameras[i], "lowerLeft", left, top);
+		ospSet2f(cameras[i], "upperRight", right, bottom);
 	}
 
 	// Load the model w/ tinyobjloader
@@ -305,8 +283,9 @@ int main(int argc, const char **argv) {
 		right_eye.eType = vr::TextureType_OpenGL;
 		right_eye.eColorSpace = vr::ColorSpace_Gamma;
 
-		vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye);
-		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye);
+		vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, nullptr);//, vr::Submit_LensDistortionAlreadyApplied);
+		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye, nullptr);//, vr::Submit_LensDistortionAlreadyApplied);
+		glFlush();
 
 		// Blit the app window display
 #if 1
