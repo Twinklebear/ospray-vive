@@ -1,0 +1,12 @@
+#pragma once
+
+#include "camera/Camera.ih"
+
+struct VrCamera {
+	Camera super;
+	vec3f org;
+	vec3f dir_00;
+	vec3f dir_du;
+	vec3f dir_dv;
+};
+

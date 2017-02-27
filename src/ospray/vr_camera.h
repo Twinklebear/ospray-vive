@@ -1,8 +1,10 @@
 #pragma once
 
-#include "camera/Camera.h"
+#include <ospray/camera/Camera.h>
 
 namespace ospvr {
+	using namespace ospray;
+
 	struct VrCamera : public Camera {
 		VrCamera();
 		virtual ~VrCamera() = default;

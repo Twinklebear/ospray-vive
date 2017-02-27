@@ -1,7 +1,7 @@
 #include <limits>
 #include "vr_camera.h"
-// We just use the perspective camera but tweak it
-#include "PerspectiveCamera_ispc.h"
+// We just use the Vr camera but tweak it
+#include "vr_camera_ispc.h"
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES
@@ -10,7 +10,7 @@
 
 namespace ospvr {
 	VrCamera::VrCamera() {
-		ispcEquivalent = ispc::PerspectiveCamera_create(this);
+		ispcEquivalent = ispc::VrCamera_create(this);
 	}
 
 	std::string VrCamera::toString() const {
@@ -34,16 +34,9 @@ namespace ospvr {
 		dir_du *= upperRight.x - lowerLeft.x;
 		dir_dv *= upperRight.y - lowerLeft.y;
 
-		const vec3f ipd_offset = vec3f(0.f);
-		ispc::PerspectiveCamera_set(getIE(),
-				(const ispc::vec3f&)org,
-				(const ispc::vec3f&)dir_00,
-				(const ispc::vec3f&)dir_du,
-				(const ispc::vec3f&)dir_dv,
-				0.f,
-				1.f,
-				false,
-				(const ispc::vec3f&)ipd_offset);
+		ispc::VrCamera_set(getIE(), (const ispc::vec3f&)org,
+				(const ispc::vec3f&)dir_00, (const ispc::vec3f&)dir_du,
+				(const ispc::vec3f&)dir_dv);
 	}
 
 	OSP_REGISTER_CAMERA(VrCamera, vr);

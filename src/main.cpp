@@ -4,7 +4,7 @@
 #include <vector>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
-#include <ospray.h>
+#include <ospray/ospray.h>
 #include <ospcommon/vec.h>
 #include <ospcommon/AffineSpace.h>
 #include <openvr.h>
@@ -135,6 +135,8 @@ int main(int argc, const char **argv) {
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	ospInit(&argc, argv);
+	// Load our custom Vive code for OSPRay
+	ospLoadModule("vive");
 
 	using namespace ospcommon;
 	// We render both left/right eye to the same framebuffer so we need it to be
