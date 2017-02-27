@@ -96,8 +96,9 @@ int main(int argc, const char **argv) {
 	vr_system->GetRecommendedRenderTargetSize(&vr_render_dims[0], &vr_render_dims[1]);
 	std::cout << "OpenVR recommended render target resolution = " << vr_render_dims[0]
 		<< "x" << vr_render_dims[1] << "\n";
-	vr_render_dims[0] *= 0.7;
-	vr_render_dims[1] *= 0.7;
+	// use Vive's screen resolution
+	vr_render_dims[0] = 1080;
+	vr_render_dims[1] = 1200;
 
 	GLuint fbo, texture;
 	glGenFramebuffers(1, &fbo);
@@ -278,8 +279,9 @@ int main(int argc, const char **argv) {
 		right_eye.eType = vr::TextureType_OpenGL;
 		right_eye.eColorSpace = vr::ColorSpace_Gamma;
 
-		vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye);
-		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye);
+		vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, nullptr);//, vr::Submit_LensDistortionAlreadyApplied);
+		vr::VRCompositor()->Submit(vr::Eye_Right, &right_eye, nullptr);//, vr::Submit_LensDistortionAlreadyApplied);
+		glFlush();
 
 		// Blit the app window display
 #if 1
