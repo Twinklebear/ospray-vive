@@ -99,6 +99,8 @@ int main(int argc, const char **argv) {
 	// use Vive's screen resolution
 	vr_render_dims[0] = 1080;
 	vr_render_dims[1] = 1200;
+	std::cout << "App render target resolution = " << vr_render_dims[0]
+		<< "x" << vr_render_dims[1] << "\n";
 
 	GLuint fbo, texture;
 	glGenFramebuffers(1, &fbo);
