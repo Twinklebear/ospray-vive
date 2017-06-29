@@ -11,8 +11,8 @@
 
 find_path(OPENVR_INCLUDE_DIR openvr.h
 	HINTS
-	${OPENVR}
-	$ENV{OPENVR}
+	${OPENVR_DIR}
+	$ENV{OPENVR_DIR}
 	PATH_SUFFIXES headers/
 	# TODO: Unsure on handling of the possible default install locations
 	PATHS
@@ -48,8 +48,8 @@ endif()
 
 find_library(OPENVR_LIBRARY_TMP NAMES openvr_api openr_api.lib
 	HINTS
-	${OPENVR}
-	$ENV{OPENVR}
+	${OPENVR_DIR}
+	$ENV{OPENVR_DIR}
 	PATH_SUFFIXES ${LIB_PATH_SUFFIX}
 	# TODO: I don't know if these will be correct if people have installed
 	# the library on to their system instead of just using the git repo or w/e
