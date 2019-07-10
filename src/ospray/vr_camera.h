@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ospray/camera/Camera.h>
+#include "camera/Camera.h"
 
 namespace ospvr {
 	using namespace ospray;

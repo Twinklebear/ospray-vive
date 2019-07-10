@@ -7,7 +7,8 @@ ospray_create_library(ospray_module_vive
 	ospray/vr_camera.ispc
 	ospray/vive_module.cpp
 	LINK
-	ospray)
+	ospray
+  ospray_module_ispc)
 
 ospray_create_application(ospray-vive
 	main.cpp

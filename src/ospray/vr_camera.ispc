@@ -13,7 +13,7 @@ void VrCamera_initRay(uniform Camera *uniform _self, varying Ray &ray,
 
 	vec3f dir = self->dir_00 + screen.x * self->dir_du + screen.y * self->dir_dv;
 
-	setRay(ray, org, normalize(dir), self->super.nearClip, infinity);
+	setRay(ray, org, normalize(dir), self->super.nearClip, 1e20f);
 }
 
 export void *uniform VrCamera_create(void *uniform cppE) {
