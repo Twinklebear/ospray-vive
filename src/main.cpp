@@ -77,6 +77,13 @@ int main(int argc, const char **argv) {
 	}
 	SDL_GL_SetSwapInterval(0);
 
+	ospInit(&argc, argv);
+	// Load our custom Vive code for OSPRay
+	if (ospLoadModule("vive") != OSP_NO_ERROR) {
+    std::cout << "Error loading vive module for OSPRay\n";
+    return 1;
+  }
+
 	// Setup OpenVR system
 	vr::EVRInitError vr_error;
 	vr::IVRSystem *vr_system = vr::VR_Init(&vr_error, vr::VRApplication_Scene);
@@ -135,10 +142,6 @@ int main(int argc, const char **argv) {
 				eye_targets[i].resolve_texture, 0);
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	ospInit(&argc, argv);
-	// Load our custom Vive code for OSPRay
-	ospLoadModule("vive");
 
 	using namespace ospcommon;
 	// We render both left/right eye to the same framebuffer so we need it to be
